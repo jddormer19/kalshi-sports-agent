@@ -1,0 +1,10 @@
+requests
+pandas
+pyarrow
+numpy
+scikit-learn
+lightgbm
+matplotlib
+nbformat
+nbconvert
+ipykernel

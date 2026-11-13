@@ -1,0 +1,19 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      # No tests yet: byte-compile everything and import each module so broken code fails the build.
+      - run: python -m compileall -q kalshi run.py
+      - run: python -c "import kalshi.api, kalshi.collect, kalshi.features, kalshi.train, kalshi.backtest, kalshi.predict"

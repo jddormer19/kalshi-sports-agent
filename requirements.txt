@@ -8,3 +8,5 @@ matplotlib
 nbformat
 nbconvert
 ipykernel
+mcp>=2.3,<3
+pytest

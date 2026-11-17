@@ -20,7 +20,7 @@ def call(name, **args):
 
 def test_tools_are_registered():
     names = {t.name for t in asyncio.run(srv.server.list_tools())}
-    assert {"get_game", "market_price"} <= names
+    assert {"get_game", "market_price", "model_win_prob"} <= names
 
 
 def test_get_game():
@@ -44,3 +44,22 @@ def test_calls_are_logged_without_leaks():
     call("market_price", event_ticker=GAME)
     last = json.loads(srv.CALL_LOG.read_text().strip().splitlines()[-1])
     assert last["tool"] == "market_price" and last["leak"] is False
+
+
+def test_model_win_prob_matches_the_exported_prediction():
+    m = call("model_win_prob", event_ticker=GAME)
+    preds = pd.read_csv(srv.ROOT / "data" / "model_preds_mlb_2026.csv")
+    row = preds[(preds.home_abbr == "MIN") & (preds.away_abbr == "NYY") & preds.game_datetime.str.startswith("2026-09-16")]
+    assert m["available"] and m["p_home"] == round(float(row.p_model.iloc[0]), 4)
+    assert pd.Timestamp(m["inputs_as_of_utc"]) <= pd.Timestamp("2026-09-16T16:40Z")
+
+
+def test_model_win_prob_unavailable_is_not_an_error():
+    missing = srv.model_probs()[srv.model_probs().isna()].index[0]
+    m = call("model_win_prob", event_ticker=missing)
+    assert m["available"] is False and "reason" in m
+
+
+def test_no_tool_call_ever_leaked():
+    for line in srv.CALL_LOG.read_text().splitlines():
+        assert json.loads(line)["leak"] is False

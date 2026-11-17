@@ -10,6 +10,4 @@ nbconvert
 ipykernel
 mcp>=1.24,<2
 langgraph
-langchain-anthropic
-langchain-mcp-adapters
 pytest

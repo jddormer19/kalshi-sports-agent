@@ -12,7 +12,7 @@ from functools import lru_cache
 from pathlib import Path
 
 import pandas as pd
-from mcp.server.mcpserver import MCPServer
+from mcp.server.fastmcp import FastMCP   # MCP SDK v1 (pinned mcp<2 in requirements.txt)
 
 from benchmark.build_benchmark import load_candles, market_price_at
 from benchmark.score_baselines import attach_model, model_preds
@@ -20,7 +20,7 @@ from benchmark.score_baselines import attach_model, model_preds
 ROOT = Path(__file__).resolve().parent.parent
 CALL_LOG = ROOT / "data" / "agent_tool_calls.jsonl"
 
-server = MCPServer("kalshi-research", instructions=(
+server = FastMCP("kalshi-research", instructions=(
     "Point-in-time research tools for forecasting sports game winners. Every tool answers as of the game's decision "
     "time t (60 minutes before the scheduled start); nothing after t is ever returned."))
 

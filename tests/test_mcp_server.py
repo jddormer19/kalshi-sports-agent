@@ -20,7 +20,7 @@ def call(name, **args):
 
 def test_tools_are_registered():
     names = {t.name for t in asyncio.run(srv.server.list_tools())}
-    assert {"get_game", "market_price", "model_win_prob"} <= names
+    assert {"get_game", "market_price", "model_win_prob", "team_recent_form"} <= names
 
 
 def test_get_game():
@@ -63,3 +63,31 @@ def test_model_win_prob_unavailable_is_not_an_error():
 def test_no_tool_call_ever_leaked():
     for line in srv.CALL_LOG.read_text().splitlines():
         assert json.loads(line)["leak"] is False
+
+
+def test_team_recent_form_only_uses_games_final_before_t():
+    f = call("team_recent_form", event_ticker=GAME, team="MIN")
+    assert f["games"] == 10 and f["wins"] + f["losses"] == 10
+    r = srv.results()
+    t = srv.game(GAME).t
+    for row in f["results_newest_first"]:   # every returned game must have ended (conservatively) by t
+        match = r[(r.sport == "MLB") & ((r.home == "MIN") | (r.away == "MIN")) &
+                  (r.start.dt.tz_convert("America/New_York").dt.date.astype(str) == row["date"])]
+        assert (match.ends_by <= t).any()
+
+
+def test_team_recent_form_excludes_a_game_still_in_progress(monkeypatch):
+    """A game that started 1 hour before t may still be in progress at t: its result must not be returned."""
+    g = srv.game(GAME)
+    in_progress = pd.DataFrame([{"sport": "MLB", "home": "MIN", "away": "DET", "start": g.t - pd.Timedelta(hours=1),
+                                 "p_model": 0.5, "model_home_win": 1.0, "ends_by": g.t + pd.Timedelta(hours=3)}])
+    with_fake = pd.concat([srv.results(), in_progress], ignore_index=True)
+    monkeypatch.setattr(srv, "results", lambda: with_fake)
+    form = srv.team_recent_form(GAME, "MIN")
+    assert "DET" not in [row["opponent"] for row in form["results_newest_first"]][:1]
+    assert all(row["date"] < "2026-09-16" or row["opponent"] != "DET" for row in form["results_newest_first"])
+
+
+def test_team_must_be_in_the_game():
+    with pytest.raises(Exception):
+        call("team_recent_form", event_ticker=GAME, team="LAD")

@@ -15,7 +15,7 @@ import pandas as pd
 from mcp.server.mcpserver import MCPServer
 
 from benchmark.build_benchmark import load_candles, market_price_at
-from benchmark.score_baselines import attach_model
+from benchmark.score_baselines import attach_model, model_preds
 
 ROOT = Path(__file__).resolve().parent.parent
 CALL_LOG = ROOT / "data" / "agent_tool_calls.jsonl"
@@ -46,6 +46,19 @@ def model_probs() -> pd.Series:
     """Walk-forward model P(home wins) per game (each season predicted by a model fit only on earlier seasons)."""
     bench = attach_model(pd.read_parquet(ROOT / "data" / "benchmark.parquet"))
     return bench.set_index("event_ticker").p_model
+
+
+# A game's result only exists once it has ENDED. Conservative upper bounds on game length (start -> final):
+# a game counts as "before t" only if start + this <= t. Rarely drops a game that did finish; never leaks one.
+GAME_LENGTH = {"MLB": pd.Timedelta(hours=4), "NBA": pd.Timedelta(hours=3), "NFL": pd.Timedelta(hours=4)}
+
+
+@lru_cache(maxsize=1)
+def results() -> pd.DataFrame:
+    """Every game with a known result (from the walk-forward export files), Kalshi team codes, UTC start times."""
+    r = model_preds().dropna(subset=["model_home_win"]).copy()
+    r["ends_by"] = r.start + r.sport.map(GAME_LENGTH)
+    return r
 
 
 def game(event_ticker: str) -> pd.Series:
@@ -106,6 +119,32 @@ def model_win_prob(event_ticker: str) -> dict:
     return {"event_ticker": event_ticker, "available": True, "p_home": round(float(p), 4),
             "model": MODEL_DESCRIPTIONS[g.sport], "trained_on": f"seasons before {g.start_time.year}",
             "inputs_as_of_utc": game_day.isoformat()}
+
+
+@server.tool()
+def team_recent_form(event_ticker: str, team: str, last_n: int = 10) -> dict:
+    """A team's most recent results that were FINAL before the decision time t (newest first): date, opponent,
+    home/away, and W/L. `team` must be one of this game's two teams (use the codes from get_game)."""
+    g = game(event_ticker)
+    if team not in (g.home_team, g.away_team):
+        raise ValueError(f"team must be {g.home_team} or {g.away_team} for this game")
+    last_n = max(1, min(int(last_n), 20))
+    r = results()
+    r = r[(r.sport == g.sport) & ((r.home == team) | (r.away == team)) & (r.ends_by <= g.t)]
+    recent = r.sort_values("start", ascending=False).head(last_n)
+    log_call("team_recent_form", event_ticker, g.t, recent.ends_by.max() if len(recent) else None)
+    rows = []
+    for x in recent.itertuples():
+        home = x.home == team
+        won = bool(x.model_home_win) == home
+        rows.append({"date": x.start.tz_convert("America/New_York").date().isoformat(),
+                     "opponent": x.away if home else x.home, "home_or_away": "home" if home else "away",
+                     "result": "W" if won else "L"})
+    wins = sum(row["result"] == "W" for row in rows)
+    return {"event_ticker": event_ticker, "team": team, "games": len(rows), "wins": wins,
+            "losses": len(rows) - wins, "results_newest_first": rows,
+            "note": "only games that were final before the decision time" +
+                    ("" if len(rows) == last_n else f"; fewer than {last_n} available (early season)")}
 
 
 if __name__ == "__main__":

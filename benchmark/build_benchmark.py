@@ -157,7 +157,24 @@ def build() -> pd.DataFrame:
     return bench
 
 
+def benchmark_path(lead_hours: float) -> Path:
+    """The frozen 1h benchmark keeps its original name; other decision times get their own file."""
+    return ROOT / "data" / ("benchmark.parquet" if lead_hours == 1 else f"benchmark_{lead_hours:g}h.parquet")
+
+
 if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--lead-hours", type=float, default=1.0, help="decision time t = start - this many hours")
+    lead = ap.parse_args().lead_hours
+    DECISION_LEAD = pd.Timedelta(hours=lead)
     bench = build()
-    bench.to_parquet(ROOT / "data" / "benchmark.parquet")
+    if lead != 1:
+        # keep the SAME dev/holdout membership as the frozen 1h benchmark, so the holdout is never re-drawn
+        base = pd.read_parquet(benchmark_path(1)).set_index("event_ticker").split
+        same = bench.event_ticker.map(base)
+        print(f"games also in the 1h benchmark: {same.notna().sum()} of {len(bench)} (others dropped)")
+        bench = bench[same.notna()].assign(split=same[same.notna()].values).reset_index(drop=True)
+    bench.to_parquet(benchmark_path(lead))
+    print(f"t = start - {lead:g}h ->", benchmark_path(lead).name)
     print(bench.groupby(["sport", "split"]).size().unstack(fill_value=0))

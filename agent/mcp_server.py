@@ -7,6 +7,7 @@ with the newest timestamp it returned, so the eval runner can audit for leakage 
 Run (stdio):  .venv/bin/python -m agent.mcp_server
 """
 import json
+import os
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -19,6 +20,7 @@ from benchmark.score_baselines import attach_model, model_preds
 
 ROOT = Path(__file__).resolve().parent.parent
 CALL_LOG = ROOT / "data" / "agent_tool_calls.jsonl"
+BENCHMARK = ROOT / "data" / os.getenv("BENCHMARK_FILE", "benchmark.parquet")
 
 server = FastMCP("kalshi-research", instructions=(
     "Point-in-time research tools for forecasting sports game winners. Every tool answers as of the game's decision "
@@ -28,7 +30,7 @@ server = FastMCP("kalshi-research", instructions=(
 @lru_cache(maxsize=1)
 def games() -> pd.DataFrame:
     """The frozen benchmark, indexed by event_ticker."""
-    return pd.read_parquet(ROOT / "data" / "benchmark.parquet").set_index("event_ticker")
+    return pd.read_parquet(BENCHMARK).set_index("event_ticker")
 
 
 MODEL_DESCRIPTIONS = {   # verified against the model code on 2026-11-17
@@ -44,7 +46,7 @@ MODEL_DESCRIPTIONS = {   # verified against the model code on 2026-11-17
 @lru_cache(maxsize=1)
 def model_probs() -> pd.Series:
     """Walk-forward model P(home wins) per game (each season predicted by a model fit only on earlier seasons)."""
-    bench = attach_model(pd.read_parquet(ROOT / "data" / "benchmark.parquet"))
+    bench = attach_model(pd.read_parquet(BENCHMARK))
     return bench.set_index("event_ticker").p_model
 
 

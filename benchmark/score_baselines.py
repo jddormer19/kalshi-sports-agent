@@ -61,16 +61,16 @@ def main():
     bad = mlb[matched & (mlb.model_label_check != mlb.label)]
     print(f"label disagreements between Kalshi and MLB data: {len(bad)}")
     s = bench[(bench.split == split) & bench.p_model.notna()]
-    y, pm, pk = s.label.values, s.market_p.values, s.p_model.values
-    rows = [("market at t", len(s), brier(pk, y), logloss(pk, y)),
-            ("my model alone", len(s), brier(pm, y), logloss(pm, y)),
+    y, p_market, p_model = s.label.values, s.market_p.values, s.p_model.values
+    rows = [("market at t", len(s), brier(p_market, y), logloss(p_market, y)),
+            ("my model alone", len(s), brier(p_model, y), logloss(p_model, y)),
             ("always base rate", len(s), brier(np.full(len(y), y.mean()), y), logloss(np.full(len(y), y.mean()), y))]
     print(f"\n{split.upper()} split, MLB games with both forecasts:")
     print(pd.DataFrame(rows, columns=["system", "games", "Brier", "log loss"]).round(4).to_string(index=False))
-    diff, lo, hi = paired_bootstrap(pm, pk, y)
+    diff, lo, hi = paired_bootstrap(p_model, p_market, y)
     print(f"\nmodel - market Brier: {diff:+.4f}  (95% CI {lo:+.4f} to {hi:+.4f}; "
           f"{'model better' if hi < 0 else 'market better' if lo > 0 else 'no detectable difference'})")
-    print(f"correlation(model, market): {np.corrcoef(pm, pk)[0, 1]:.3f}")
+    print(f"correlation(model, market): {np.corrcoef(p_model, p_market)[0, 1]:.3f}")
 
 
 if __name__ == "__main__":

@@ -86,3 +86,4 @@ my own models, or an LLM research agent that can use my models and point-in-time
 ## Change log
 - 2026-11-13: spec frozen (no holdout results seen).
 - 2026-11-17: rule 7 clarified: split at a date boundary so same-day games stay together (no holdout results seen).
+- 2026-11-17: added the t = start - 24h variant (data/benchmark_24h.parquet, built with `--lead-hours 24`; 2,921 games with the SAME dev/holdout membership as the 1h benchmark, which is unchanged). At t - 24h, model_win_prob is excluded (its inputs run to game-day midnight, after t). News sources and their timestamp limits: Desktop audit 2026-11-17 (NBA official injury PDFs, 15-min; MLB Stats API feed snapshots, t - 1h only; nflverse injuries, week-level with a conservative rule). No holdout results seen.

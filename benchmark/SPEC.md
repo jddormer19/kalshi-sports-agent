@@ -52,7 +52,8 @@ my own models, or an LLM research agent that can use my models and point-in-time
 
 ## 7. Split
 - **Chronological, per sport:** within each sport, the earliest 70% of games by start time are **dev**, the latest 30%
-  are **holdout**. Per sport so every sport appears in both sets (a single global date cutoff would put most NBA
+  are **holdout**, cut at a **date boundary** (US Eastern) so no single day's games are split across the two sets;
+  the resulting shares are approximate and reported per sport. Per sport so every sport appears in both sets (a single global date cutoff would put most NBA
   and NFL games in the holdout and almost none in dev).
 - Dev is for building, debugging and tuning prompts and tools. The holdout is scored **once**, at the end, with the
   final frozen system. If the holdout is ever looked at early, that is written down here.
@@ -84,3 +85,4 @@ my own models, or an LLM research agent that can use my models and point-in-time
 
 ## Change log
 - 2026-11-13: spec frozen (no holdout results seen).
+- 2026-11-17: rule 7 clarified: split at a date boundary so same-day games stay together (no holdout results seen).

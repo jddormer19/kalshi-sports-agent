@@ -116,13 +116,21 @@ def select(df: pd.DataFrame, min_volume: float, rng) -> pd.DataFrame:
     return pd.concat(parts).drop_duplicates("ticker").reset_index(drop=True)
 
 
+def _get(d, *keys):
+    for k in keys:
+        if d.get(k) is not None:
+            return d[k]
+    return None
+
+
 def candles_to_df(cs) -> pd.DataFrame:
     rows = []
     for c in cs:
         p, b, a = c.get("price") or {}, c.get("yes_bid") or {}, c.get("yes_ask") or {}
-        rows.append(dict(t=int(c["end_period_ts"]), price=_f(p.get("close_dollars")),
-                         bid=_f(b.get("close_dollars")), ask=_f(a.get("close_dollars")),
-                         volume=_f(c.get("volume_fp")), oi=_f(c.get("open_interest_fp"))))
+        # live candles use *_dollars / *_fp field names; the historical archive uses close / volume / open_interest
+        rows.append(dict(t=int(c["end_period_ts"]), price=_f(_get(p, "close_dollars", "close")),
+                         bid=_f(_get(b, "close_dollars", "close")), ask=_f(_get(a, "close_dollars", "close")),
+                         volume=_f(_get(c, "volume_fp", "volume")), oi=_f(_get(c, "open_interest_fp", "open_interest"))))
     return pd.DataFrame(rows, columns=["t", "price", "bid", "ask", "volume", "oi"])
 
 

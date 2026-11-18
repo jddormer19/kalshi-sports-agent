@@ -14,6 +14,7 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
-      # No tests yet: byte-compile everything and import each module so broken code fails the build.
-      - run: python -m compileall -q kalshi run.py
+      # Byte-compile and import every module; tests that need the git-ignored data skip themselves.
+      - run: python -m compileall -q kalshi run.py benchmark agent evals news
       - run: python -c "import kalshi.api, kalshi.collect, kalshi.features, kalshi.train, kalshi.backtest, kalshi.predict"
+      - run: python -m pytest -q tests/

@@ -7,6 +7,8 @@ import pytest
 
 from agent import mcp_server as srv
 
+pytestmark = pytest.mark.skipif(not srv.BENCHMARK.exists(), reason="benchmark data not built (git-ignored)")
+
 GAME = "KXMLBGAME-26SEP161340NYYMIN"     # Sep 16, 2026, 13:40 ET start; t = 16:40 UTC; mid at t = 0.405
 
 

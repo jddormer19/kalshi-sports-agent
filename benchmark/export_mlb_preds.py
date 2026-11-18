@@ -1,6 +1,6 @@
 """Export point-in-time MLB model predictions for the 2026 season (walk-forward: trained only on earlier seasons).
 
-Run with the MLB project venv, from the MLB model project's root (a separate private repo) (PYTHONPATH=.):
+Run with the MLB model project's environment, from that project's root (a separate private repo; PYTHONPATH=.):
     .venv/bin/python <this file> <out.csv>
 """
 import sys

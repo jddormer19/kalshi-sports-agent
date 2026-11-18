@@ -1,6 +1,6 @@
 """Point-in-time NBA injury reports from the league's official injury report PDFs.
 
-Source (data-rights audit 2026-11-17, data-rights review): the NBA publishes a PDF every
+Source (chosen in a data-rights review, 2026-11-17): the NBA publishes a PDF every
 15 minutes at ak-static.cms.nba.com/referee/injury/Injury-Report_YYYY-MM-DD_HH_MMAM.pdf. The report time in the
 filename (US Eastern) is the publication timestamp we trust; never the time we downloaded it.
 Rules: private copy only (data/ is git-ignored), about 1 request per second, cache everything, never re-pull.

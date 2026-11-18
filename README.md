@@ -5,10 +5,10 @@ Kalshi prediction-market prices on a frozen, leak-audited set of 2,861 settled 2
 
 **Result:** the agent matches the market but does not beat it. Across every test (my own statistical models, a fitted
 market-plus-model blend, the LLM agent, and an agent with official injury reports), one-hour-ahead Kalshi sports prices
-already contain the public signal. The agent forecasts at about $0.05 and 11 seconds per game, with zero lookahead
-leaks logged across every run.
+already contain the signal from my own models and from official injury reports. The agent forecasts at about
+$0.04–0.06 and 10–11 seconds per game, with zero lookahead leaks logged across every run.
 
-### Holdout (scored once, pre-registered in [`SPEC.md`](benchmark/SPEC.md) before any result was computed)
+### Holdout (scored once, pre-registered in [`SPEC.md`](benchmark/SPEC.md) before any holdout result was computed)
 
 | System | Holdout games | Brier | − market (95% CI) |
 |---|---|---|---|
@@ -17,10 +17,11 @@ leaks logged across every run.
 | My models alone | 887 | 0.2303 | +0.0034 (+0.0001 to +0.0068), worse |
 | **Agent v1** (Claude Opus 5.5, 4 tools) | 100-game sample | **0.2280** vs market 0.2297 | −0.0017 (−0.0037 to +0.0003), no detectable edge |
 
-The market is the best single forecaster on fresh games. The fixed blend that tied the market on dev lost to it on the
-holdout (my NBA model degraded this fall), while the agent, which mostly defers to the market and leans on my model
-only with judgment, did not lose: an LLM that defers to the market held up better than a fixed formula when one input
-drifted. Agent run: 100 games, 0 errors, 0 leaks, $4.59, 10 s per game.
+The market is the best single forecaster on fresh games. My models and the blend fit on dev were both worse than the
+market on the holdout (my NBA model degraded this fall: +0.0206, CI +0.0023 to +0.0398). On its 100-game sample the
+agent was not worse than the market; agent versus blend was not tested. Agent run: 100 games, 0 errors, 0 leaks,
+$4.59, 10 s per game. The blend used on the holdout was refit on all dev games:
+`logit(p) = −0.03 + 0.77·logit(market) + 0.10·logit(model)`.
 
 ## Architecture
 
@@ -73,22 +74,25 @@ trained only on earlier seasons.
 | Brier | **0.2424** | 0.2443 | 0.2494 |
 
 No detectable difference overall (model − market +0.0019, CI −0.0003 to +0.0041); the market is better in MLB, the
-largest sample. Model and market correlate at only 0.85, which is what the agent was meant to exploit.
+largest sample. Model and market correlate at only 0.86, which is what the agent was meant to exploit.
 
 **2. The agent at t − 1 h (60 dev games, Claude Opus 5.5).** Market **0.2422**, agent 0.2438, my models 0.2518;
 agent − market +0.0016 (CI −0.0004 to +0.0035). The agent behaves like a cautious blend: it moves 0.7 points from the
 market on average, toward my model in 53 of 60 games. $3.35 total, 5 tool calls per game.
 
-**3. A one-line blend.** `logit(p) = −0.02 + 0.73·logit(market) + 0.14·logit(model)`. Forward-chained over 1,614 dev
+**3. A one-line blend.** `logit(p) = −0.02 + 0.72·logit(market) + 0.15·logit(model)` (fit on dev games outside the
+agent's 60). Forward-chained over 1,614 dev
 games it does not beat the market (+0.0012, CI −0.0006 to +0.0029), and the agent does no better than it. Conclusion:
-one hour before a game, the market already contains everything my models know.
+one hour before a game, my models add no detectable information to the market price.
 
-**4. Does the market learn in the last day?** Same games at t − 24 h vs t − 1 h: the 24-hour price is worse overall
-(+0.0025, CI +0.0009 to +0.0040). Split by phase, the NBA gap is almost all **preseason** (+0.0189, prices move 5.9
-points as teams announce who sits) versus regular season and playoffs (+0.0017, not significant).
+**4. Does the market learn in the last day?** Same dev games at t − 24 h vs t − 1 h (1,965 games): the 24-hour price
+is worse (+0.0019, CI +0.0004 to +0.0034). In the NBA the gap was concentrated in **preseason**: +0.0189
+(CI +0.0027 to +0.0360, 66 games, prices moving 5.9 points on average as teams announce who sits; measured before
+preseason games were excluded from the benchmark) versus regular season and playoffs (+0.0017, CI −0.0035 to
++0.0068, 151 games, not significant).
 
 **5. Agent + official NBA injury reports at t − 24 h (60 regular-season/playoff dev games).** Market 0.1896, agent
-without injuries 0.1896, agent with injuries 0.1904 (difference +0.0009, CI −0.0010 to +0.0028). In real games the
+without injuries 0.1896, agent with injuries 0.1904 (with − without injuries +0.0009, CI −0.0010 to +0.0028). In real games the
 injury report is public a day out and already priced; the preseason games where the market did learn late have no
 injury reports at all, which is how the benchmark's preseason rule was found.
 
@@ -103,8 +107,8 @@ injury reports at all, which is how the benchmark's preseason rule was found.
     24-hour variant; the leak audit would flag it otherwise.
   - Injury reports are dated by the report time in the file name, never by when they were downloaded.
 - **Checking results before trusting them.** An early "my model beats the market" result came from swapped labels in
-  the scoring script. A second, independent check caught it, and the correction is in the decision log. The benchmark
-  rebuilds to the same fingerprint every time.
+  the scoring script. A second, independent check caught it (fixed in commit `0a3fd4a`). Rebuilding the benchmark keeps
+  every game's dev/holdout membership, which the build asserts against the frozen split.
 
 ## Limitations
 - One season of 2026 games: MLB dominates the sample; NBA and NFL results per sport are directional.
@@ -124,13 +128,19 @@ python -m news.nba_injuries                           # official NBA injury repo
 python -m evals.run_agent --n 60 --tag dev60_v1       # agent on 60 dev games (needs ANTHROPIC_API_KEY)
 pytest tests/
 ```
-My model predictions come from two separate projects (MLB and NBA/NFL); their export scripts are in `benchmark/`.
+Steps from `score_baselines` on need my models' predictions (`data/model_preds_*.csv`), which come from two separate
+private projects (MLB and NBA/NFL); their export scripts are in `benchmark/`.
 
 ## Data sources
 - **Kalshi** public market data API (read-only; this project never places orders).
 - **NBA official injury reports** (league-published PDFs): downloaded once for private research, never redistributed.
-- Game results and model inputs come from my own models' data pipelines.
-- Not affiliated with Kalshi, the NBA, MLB or the NFL. Not betting advice.
+- **My model predictions** come from my own private projects. Their inputs include MLB Stats API data, nflverse data
+  (CC BY 4.0, credit: the nflverse project) and ESPN's public NBA scoreboard, used for non-commercial research. Only
+  aggregate results of my own models are published here; no raw third-party data is in this repo.
+- Not affiliated with or endorsed by Kalshi, the NBA, MLB or the NFL. Not betting advice.
+
+## License
+Code: MIT (see [`LICENSE`](LICENSE)). Data is not included and is not covered by this license.
 
 ## Earlier work
 This repo started as a general Kalshi mispricing model (LightGBM correction on market log-odds across 12.4k markets).

@@ -3,8 +3,8 @@
 Predicts P(YES) for Kalshi binary markets from point-in-time market state, compares with the
 quoted price, and backtests a fee-aware taker strategy. Read-only: it never places orders.
 
-**Start here:** open `kalshi_model.ipynb` (Jupyter or VS Code) for the full walkthrough with charts,
-or `kalshi_model.html` in any browser. To re-run the notebook from scratch:
+**Start here:** open `kalshi_model.ipynb` (Jupyter or VS Code) for the full walkthrough with charts.
+To re-run the notebook from scratch:
 `.venv/bin/jupyter nbconvert --to notebook --execute --inplace kalshi_model.ipynb`
 
 ```bash
@@ -35,7 +35,8 @@ Test period: snapshots on or after 2026-09-16 (2,450 markets).
 | Market, recalibrated | 0.1840 | +0.0% |
 | Model | 0.1875 | **+1.9% (worse)** |
 
-- Beats the market on test in Weather (−4%), Commodities (−10%) and Financials (−6%).
+- Lower Brier than the market on test in Weather (−4%), Commodities (−10%) and Financials (−6%)
+  (no confidence interval computed, so not an edge).
   Loses in Sports (+3%) and Economics (+8%).
 - On validation slices *inside* the training period, every variant beat the market by about 1.5%.
   That edge **did not carry forward** to the later test period (regime shift: football season started).

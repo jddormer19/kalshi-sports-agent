@@ -4,7 +4,6 @@ Output: data/benchmark.parquet, one row per game:
     event_ticker, sport, start_time, t, home_team, away_team, home_ticker, label (1 = home won),
     market_p (mid at t), spread_at_t, split ("dev" / "holdout")
 
-You write the five TODO functions; the loading and saving plumbing is done.
 Run:  .venv/bin/python -m benchmark.build_benchmark
 """
 import re
@@ -34,7 +33,7 @@ def load_candles(ticker: str) -> pd.DataFrame:
     return pd.read_parquet(f) if f.exists() else pd.DataFrame(columns=["t", "price", "bid", "ask", "volume", "oi"])
 
 
-# ---------------------------------------------------------------- TODO 1
+# ----------------------------------------------------------------
 def game_start(event_ticker: str, markets: pd.DataFrame) -> pd.Timestamp | None:
     """Scheduled start time (UTC) of the game.
 
@@ -56,7 +55,7 @@ def game_start(event_ticker: str, markets: pd.DataFrame) -> pd.Timestamp | None:
     return None
 
 
-# ---------------------------------------------------------------- TODO 2
+# ----------------------------------------------------------------
 def home_side(event_ticker: str, game_markets: pd.DataFrame) -> tuple[str, str, str] | None:
     """Return (home_team, away_team, home_market_ticker).
 
@@ -76,7 +75,7 @@ def home_side(event_ticker: str, game_markets: pd.DataFrame) -> tuple[str, str, 
     return None
 
 
-# ---------------------------------------------------------------- TODO 3
+# ----------------------------------------------------------------
 def market_price_at(candles: pd.DataFrame, t: pd.Timestamp) -> tuple[float, float] | None:
     """(mid, spread) from the last candle whose period ENDED at or before t. Never use a later candle.
     Return None if there is no usable candle (missing bid/ask) or the spread exceeds MAX_SPREAD."""
@@ -94,7 +93,7 @@ def market_price_at(candles: pd.DataFrame, t: pd.Timestamp) -> tuple[float, floa
     return (bid + ask) / 2, spread
 
 
-# ---------------------------------------------------------------- TODO 4
+# ----------------------------------------------------------------
 def assign_split(bench: pd.DataFrame) -> pd.Series:
     """'dev' for the earliest 70% of games by start_time, 'holdout' for the latest 30%.
     Think: split per sport, or one global date cutoff? Write the choice and the reason in SPEC.md.
@@ -109,17 +108,17 @@ def assign_split(bench: pd.DataFrame) -> pd.Series:
     return split
 
 
-# ---------------------------------------------------------------- TODO 5
+# ----------------------------------------------------------------
 def build() -> pd.DataFrame:
     """Loop over games: start time -> t -> home side -> label -> market price at t.
     Keep a counter of every exclusion reason (no start time, no candle before t, wide spread, void)
-    and print it: reviewers will ask how many games you dropped and why."""
+    and print it, so every dropped game is accounted for."""
     markets = load_markets()
     dropped = Counter()
     rows = []
     for event, g in markets.groupby("event_ticker"):
         sport = g.sport.iloc[0]
-        start = game_start(event, g)                                   # TODO 1
+        start = game_start(event, g)
         if start is None:
             dropped["no start time"] += 1
             continue
@@ -129,7 +128,7 @@ def build() -> pd.DataFrame:
         if sport == "NBA" and NBA_PRESEASON[0] <= start.tz_convert("America/New_York").strftime("%Y-%m-%d") < NBA_PRESEASON[1]:
             dropped["NBA preseason"] += 1
             continue
-        side = home_side(event, g)                                     # TODO 2
+        side = home_side(event, g)
         if side is None:
             dropped["teams not resolved"] += 1
             continue
@@ -144,7 +143,7 @@ def build() -> pd.DataFrame:
         if candles.empty or (candles.t <= t.timestamp()).sum() == 0:
             dropped["no candle before t"] += 1
             continue
-        priced = market_price_at(candles, t)                           # TODO 3
+        priced = market_price_at(candles, t)
         if priced is None:
             dropped["no usable quote at t (missing or spread > 10c)"] += 1
             continue
@@ -153,7 +152,7 @@ def build() -> pd.DataFrame:
                          home_ticker=home_ticker, label=int(home_result == "yes"), market_p=float(mid),
                          spread_at_t=float(spread)))
     bench = pd.DataFrame(rows).sort_values("start_time").reset_index(drop=True)
-    bench["split"] = assign_split(bench)                               # TODO 4
+    bench["split"] = assign_split(bench)
     total = markets.event_ticker.nunique()
     print(f"games: {total} | kept: {len(bench)} | dropped: {sum(dropped.values())}")
     for reason, n in dropped.most_common():

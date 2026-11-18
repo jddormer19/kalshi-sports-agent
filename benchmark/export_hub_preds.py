@@ -1,5 +1,6 @@
 """Export point-in-time NBA and NFL model predictions (walk-forward: each season predicted by a model fit only on
-earlier seasons). Run from the NBA/NFL model project's root (a separate private repo) with HUB_DATA_DIR pointing at a COPY of data/ (the live server holds the lock):
+earlier seasons). Run from the NBA/NFL model project's root (a separate private repo), with HUB_DATA_DIR pointing at a
+copy of its data directory:
     HUB_DATA_DIR=<copy of data> PYTHONPATH=. .venv/bin/python <this file> <out_dir>
 NBA uses the same frame as the live predictor (historical games + current-season games from ESPN), because the
 historical table drops a season's games until teams reach 40 games (the exhibition filter).

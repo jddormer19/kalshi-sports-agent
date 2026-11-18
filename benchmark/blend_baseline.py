@@ -33,6 +33,11 @@ def fit(train: pd.DataFrame) -> LogisticRegression:
     return LogisticRegression(C=1e6, max_iter=1000).fit(features(train), train.label.values)
 
 
+def fit_recal(train: pd.DataFrame) -> LogisticRegression:
+    """Recalibrated market (SPEC rule 8): logistic calibration of the market price alone."""
+    return LogisticRegression(C=1e6, max_iter=1000).fit(features(train)[:, :1], train.label.values)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--agent-run", default=str(ROOT / "data" / "agent_runs" / "dev60_v1.jsonl"))
@@ -47,12 +52,14 @@ def main():
     model = fit(dev[~dev.event_ticker.isin(agent)])
     b0, (b_mkt, b_mod) = model.intercept_[0], model.coef_[0]
     test["p_blend"] = model.predict_proba(features(test))[:, 1]
+    test["p_recal"] = fit_recal(dev[~dev.event_ticker.isin(agent)]).predict_proba(features(test)[:, :1])[:, 1]
     test["p_agent"] = test.event_ticker.map(agent)
     y = test.label.values
     print(f"blend fit on {len(dev) - len(test)} other dev games: "
           f"logit(p) = {b0:+.3f} + {b_mkt:.3f}*logit(market) + {b_mod:.3f}*logit(model)")
     print(f"\nhead-to-head on the agent's {len(test)} games:")
-    for name, col in [("market", "market_p"), ("my model", "p_model"), ("blend", "p_blend"), ("agent", "p_agent")]:
+    for name, col in [("market", "market_p"), ("recal mkt", "p_recal"), ("my model", "p_model"), ("blend", "p_blend"),
+                      ("agent", "p_agent")]:
         print(f"  {name:9s} Brier {brier(test[col].values, y):.4f}")
     for (an, ac), (bn, bc) in [(("agent", "p_agent"), ("blend", "p_blend")), (("blend", "p_blend"), ("market", "market_p"))]:
         diff, lo, hi = paired_bootstrap(test[ac].values, test[bc].values, y)
@@ -63,14 +70,17 @@ def main():
     preds = []
     for k in range(1, len(blocks)):
         tr, te = dev.iloc[np.concatenate(blocks[:k])], dev.iloc[blocks[k]]
-        preds.append(te.assign(p_blend=fit(tr).predict_proba(features(te))[:, 1]))
+        preds.append(te.assign(p_blend=fit(tr).predict_proba(features(te))[:, 1],
+                               p_recal=fit_recal(tr).predict_proba(features(te)[:, :1])[:, 1]))
     fc = pd.concat(preds)
     y = fc.label.values
     print(f"\nforward-chaining over dev ({len(fc)} games predicted out of sample, by date):")
-    for name, col in [("market", "market_p"), ("my model", "p_model"), ("blend", "p_blend")]:
+    for name, col in [("market", "market_p"), ("recal mkt", "p_recal"), ("my model", "p_model"), ("blend", "p_blend")]:
         print(f"  {name:9s} Brier {brier(fc[col].values, y):.4f}")
     diff, lo, hi = paired_bootstrap(fc.p_blend.values, fc.market_p.values, y)
     print(f"  blend - market: {diff:+.4f} (95% CI {lo:+.4f} to {hi:+.4f})")
+    diff, lo, hi = paired_bootstrap(fc.p_recal.values, fc.market_p.values, y)
+    print(f"  recalibrated market - market: {diff:+.4f} (95% CI {lo:+.4f} to {hi:+.4f})")
     for sport, g in fc.groupby("sport"):
         d, lo, hi = paired_bootstrap(g.p_blend.values, g.market_p.values, g.label.values)
         print(f"    {sport}: {len(g)} games, blend - market {d:+.4f} (CI {lo:+.4f} to {hi:+.4f})")

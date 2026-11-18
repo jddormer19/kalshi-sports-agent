@@ -83,6 +83,7 @@ def main():
     ap.add_argument("--benchmark", default="benchmark.parquet", help="file in data/ (e.g. benchmark_24h.parquet)")
     ap.add_argument("--sport", default=None, help="MLB, NBA or NFL (default: all, stratified)")
     ap.add_argument("--tools", default="", help="comma-separated allowlist (default: every server tool)")
+    ap.add_argument("--games-from", default="", help="reuse the exact games of an earlier run (data/agent_runs/<tag>.jsonl)")
     a = ap.parse_args()
     os.environ["BENCHMARK_FILE"] = a.benchmark          # the MCP server subprocess inherits these
     os.environ["AGENT_TOOLS"] = a.tools
@@ -92,7 +93,11 @@ def main():
     out.parent.mkdir(parents=True, exist_ok=True)
     done = {json.loads(l)["event_ticker"] for l in out.read_text().splitlines()} if out.exists() else set()
     need_model = not a.tools or "model_win_prob" in a.tools.split(",")
-    todo = [e for e in sample_dev(a.n, bench, a.sport, need_model, a.seed) if e not in done]
+    if a.games_from:
+        games = [json.loads(l)["event_ticker"] for l in open(ROOT / "data" / "agent_runs" / f"{a.games_from}.jsonl")]
+    else:
+        games = sample_dev(a.n, bench, a.sport, need_model, a.seed)
+    todo = [e for e in games if e not in done]
     print(f"{len(todo)} games to run ({len(done)} already done) -> {out} | benchmark {a.benchmark} | "
           f"tools {a.tools or 'all'}", flush=True)
     rows = asyncio.run(run_games(todo))

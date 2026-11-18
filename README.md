@@ -96,6 +96,16 @@ without injuries 0.1896, agent with injuries 0.1904 (with − without injuries +
 injury report is public a day out and already priced; the preseason games where the market did learn late have no
 injury reports at all, which is how the benchmark's preseason rule was found.
 
+**6. The two remaining systems from the original spec (run on dev after the holdout).** The spec's rule 8 also listed a
+recalibrated market and an agent without my model. The one-time holdout pre-registration (2026-11-18) narrowed the
+holdout to four systems, so these two were run on dev only:
+- *Recalibrated market* (a logistic calibration curve fit on earlier dev games): no improvement, forward-chained over
+  1,614 dev games (+0.0007, CI −0.0009 to +0.0024). Kalshi prices are already well calibrated.
+- *Agent without my model* (same 60 dev games, tools: game facts, market price, team form): Brier 0.2423 vs market
+  0.2422 (+0.0001, CI −0.0009 to +0.0010). Without my model the agent stays at the market price (0.2-point average
+  move); adding my model moved it 0.7 points and changed Brier by +0.0015 (CI −0.0006 to +0.0035), consistent with
+  the market already containing my models' signal.
+
 ## Engineering notes
 - **Archive bug caught by a coverage check.** At first, 90% of MLB games came out with no price. Kalshi's historical
   archive names candle fields differently from the live API (`close` instead of `close_dollars`). The parser now reads

@@ -19,6 +19,7 @@ DECISION_LEAD = pd.Timedelta(minutes=60)   # rule 2
 MAX_SPREAD = 0.10                          # rule 3
 HOLDOUT_FRAC = 0.30                        # rule 4
 NFL_REGULAR_SEASON_MONTH = 9               # NFL games before September are preseason (spec rule 2)
+NBA_PRESEASON = ("2026-09-01", "2026-10-19")  # 2026-27 NBA preseason: no injury reports, rested starters
 
 
 def load_markets() -> pd.DataFrame:
@@ -125,6 +126,9 @@ def build() -> pd.DataFrame:
         if sport == "NFL" and start.tz_convert("America/New_York").month < NFL_REGULAR_SEASON_MONTH:
             dropped["NFL preseason"] += 1
             continue
+        if sport == "NBA" and NBA_PRESEASON[0] <= start.tz_convert("America/New_York").strftime("%Y-%m-%d") < NBA_PRESEASON[1]:
+            dropped["NBA preseason"] += 1
+            continue
         side = home_side(event, g)                                     # TODO 2
         if side is None:
             dropped["teams not resolved"] += 1
@@ -169,6 +173,13 @@ if __name__ == "__main__":
     lead = ap.parse_args().lead_hours
     DECISION_LEAD = pd.Timedelta(hours=lead)
     bench = build()
+    frozen = ROOT / "data" / "benchmark_split_v1.parquet"   # dev/holdout membership frozen on 2026-11-13
+    if frozen.exists():
+        keep = pd.read_parquet(frozen).set_index("event_ticker").split
+        same = bench.event_ticker.map(keep)
+        assert same.notna().all(), "a game not in the frozen split appeared; investigate before rebuilding"
+        bench["split"] = same.values
+        print("dev/holdout membership taken from the frozen split (unchanged for every game kept)")
     if lead != 1:
         # keep the SAME dev/holdout membership as the frozen 1h benchmark, so the holdout is never re-drawn
         base = pd.read_parquet(benchmark_path(1)).set_index("event_ticker").split

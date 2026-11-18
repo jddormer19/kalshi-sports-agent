@@ -15,6 +15,7 @@ my own models, or an LLM research agent that can use my models and point-in-time
 - **Excluded, with a count printed for each reason:**
   - games with no determinable start time (all 3,133 games from 2025, and NBA/NFL 2026 games missing `occurrence_datetime`);
   - NFL preseason games (my NFL model covers regular season and playoffs only);
+  - NBA preseason games (Sep 1 - Oct 18, 2026): no official injury reports, and starters rest unpredictably;
   - voided, postponed or tied games, i.e. anything where exactly one side did not settle YES;
   - games with no usable price at the decision time (rule 5).
 - Why only Kalshi's own data for start times: a single source applied the same way to every game, with no extra
@@ -87,3 +88,4 @@ my own models, or an LLM research agent that can use my models and point-in-time
 - 2026-11-13: spec frozen (no holdout results seen).
 - 2026-11-17: rule 7 clarified: split at a date boundary so same-day games stay together (no holdout results seen).
 - 2026-11-17: added the t = start - 24h variant (data/benchmark_24h.parquet, built with `--lead-hours 24`; 2,921 games with the SAME dev/holdout membership as the 1h benchmark, which is unchanged). At t - 24h, model_win_prob is excluded (its inputs run to game-day midnight, after t). News sources and their timestamp limits: Desktop audit 2026-11-17 (NBA official injury PDFs, 15-min; MLB Stats API feed snapshots, t - 1h only; nflverse injuries, week-level with a conservative rule). No holdout results seen.
+- 2026-11-18: rule 2: NBA preseason games excluded (67 games, all dev). Found when the injury tool had no reports for them; the NBA 24h-vs-1h price gap was concentrated in preseason. Dev/holdout membership of every remaining game is unchanged (frozen split file). No holdout results seen.

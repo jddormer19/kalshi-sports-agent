@@ -11,3 +11,4 @@ ipykernel
 mcp>=1.24,<2
 langgraph
 pytest
+pdfplumber

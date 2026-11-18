@@ -26,17 +26,26 @@ BETAS = ["server-side-fallback-2026-07-01"]           # refusal fallback: rerun 
 PRICES = {"claude-opus-5-5": (4.00, 20.00, 0.20), "claude-sonnet-5-5": (2.00, 10.00, 0.10),
           "claude-haiku-5-5": (0.10, 0.50, 0.01)}     # $/1M tokens: input, output, cache read
 
-SYSTEM = """You forecast whether the HOME team wins a game, as of the decision time t (60 minutes before the \
-scheduled start). Your tools only return information that was available at t.
+ALLOWED_TOOLS = [t for t in os.getenv("AGENT_TOOLS", "").split(",") if t]   # empty = every server tool
+TOOL_GUIDANCE = {
+    "market_price": "The prediction-market price is a strong baseline: markets are hard to beat. Check it early.",
+    "model_win_prob": "My own statistical model: on past games it was slightly less accurate than the market on "
+                      "average but often disagrees with it. Treat both as evidence.",
+    "team_recent_form": "Recent form over 10 games is noisy. Don't overreact to streaks.",
+    "injury_report": "The official injury report: who is Out, Doubtful or Questionable. Think about how much each "
+                     "absent player matters and whether the market price already reflects it. A report from the day "
+                     "before may not list the game yet; teams usually file on game day.",
+}
 
-How to work:
-- Start with get_game and market_price. The prediction-market price is a strong baseline: markets are hard to beat.
-- Then check model_win_prob (my own statistical model) and team_recent_form for both teams.
-- On past games (development data), my model has been slightly less accurate than the market on average, but it \
-often disagrees with it. Treat both as evidence; move away from the market only for a concrete reason you found.
-- Recent form over 10 games is noisy. Don't overreact to streaks.
-- Be calibrated: your probability should mean what it says. When evidence is thin, stay close to the market.
-- If a tool says something is unavailable, work with what you have."""
+
+def system_prompt(tool_names: list[str]) -> str:
+    lines = [f"- {TOOL_GUIDANCE[n]}" for n in tool_names if n in TOOL_GUIDANCE]
+    return ("You forecast whether the HOME team wins a game, as of a decision time t before the scheduled start. "
+            "Your tools only return information that was available at t.\n\nHow to work:\n"
+            "- Start with get_game, then use the other tools.\n" + "\n".join(lines) + "\n"
+            "- Move away from the market only for a concrete reason you found; be calibrated, and when evidence is "
+            "thin, stay close to the market.\n- If a tool says something is unavailable, work with what you have.")
+
 
 FORECAST_PROMPT = ("Give your final forecast now: the probability that the HOME team wins, your confidence "
                    "(low/medium/high), the key factors, and short reasoning.")
@@ -80,7 +89,7 @@ def cost_usd(usage: dict, model: str = MODEL) -> float:
 
 
 def build_graph(client: anthropic.AsyncAnthropic, session: ClientSession, tools: list[dict]):
-    common = dict(model=MODEL, max_tokens=16000, system=SYSTEM, tools=tools, betas=BETAS, fallbacks="default",
+    common = dict(model=MODEL, max_tokens=16000, system=system_prompt([t["name"] for t in tools]), tools=tools, betas=BETAS, fallbacks="default",
                   cache_control={"type": "ephemeral"})
 
     async def research(state: AgentState) -> dict:
@@ -99,6 +108,8 @@ def build_graph(client: anthropic.AsyncAnthropic, session: ClientSession, tools:
             for b in uses:
                 if calls >= MAX_TOOL_CALLS:
                     content, is_err = "Tool budget reached. Give your forecast with what you have.", True
+                elif b.name not in {t["name"] for t in tools}:
+                    content, is_err = f"Tool {b.name} is not available in this run.", True
                 else:
                     r = await session.call_tool(b.name, b.input)
                     calls += 1
@@ -154,7 +165,7 @@ async def run_games(event_tickers: list[str]) -> list[dict]:
             await session.initialize()
             listed = await session.list_tools()
             tools = [{"name": t.name, "description": t.description or "", "input_schema": t.inputSchema}
-                     for t in listed.tools]
+                     for t in listed.tools if not ALLOWED_TOOLS or t.name in ALLOWED_TOOLS]
             graph = build_graph(client, session, tools)
             for ev in event_tickers:
                 log_start = len(call_log.read_text().splitlines()) if call_log.exists() else 0

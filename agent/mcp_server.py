@@ -17,6 +17,7 @@ from mcp.server.fastmcp import FastMCP   # MCP SDK v1 (pinned mcp<2 in requireme
 
 from benchmark.build_benchmark import load_candles, market_price_at
 from benchmark.score_baselines import attach_model, model_preds
+from news import nba_injuries
 
 ROOT = Path(__file__).resolve().parent.parent
 CALL_LOG = ROOT / "data" / "agent_tool_calls.jsonl"
@@ -147,6 +148,48 @@ def team_recent_form(event_ticker: str, team: str, last_n: int = 10) -> dict:
             "losses": len(rows) - wins, "results_newest_first": rows,
             "note": "only games that were final before the decision time" +
                     ("" if len(rows) == last_n else f"; fewer than {last_n} available (early season)")}
+
+
+@lru_cache(maxsize=1)
+def injury_rows() -> pd.DataFrame:
+    f = nba_injuries.OUT / "rows.parquet"
+    return pd.read_parquet(f) if f.exists() else pd.DataFrame(columns=["report", "matchup", "date", "team"])
+
+
+@server.tool()
+def injury_report(event_ticker: str) -> dict:
+    """NBA only. The league's official injury report most recently published at or before the decision time t:
+    each team's listed players with status (Out, Doubtful, Questionable, Probable, Available) and reason.
+    A team marked not yet submitted has unknown availability. Players not listed had no injury designation in that
+    report. Teams usually file on game day, so a report from the day before may not list this game yet."""
+    g = game(event_ticker)
+    if g.sport != "NBA":
+        log_call("injury_report", event_ticker, g.t, None)
+        return {"event_ticker": event_ticker, "available": False, "reason": "injury reports are only available for NBA games"}
+    report = nba_injuries.latest_cached_before(g.t)
+    published = nba_injuries.stamp_time_utc(report) if report else None
+    log_call("injury_report", event_ticker, g.t, published)
+    if report is None:
+        return {"event_ticker": event_ticker, "available": False,
+                "reason": "no injury report was published in the 12 hours before the decision time"}
+    rows = injury_rows()
+    day = g.start_time.tz_convert("America/New_York").strftime("%m/%d/%Y")
+    r = rows[(rows.report == report) & (rows.matchup == f"{g.away_team}@{g.home_team}") & (rows.date == day)]
+    out = {"event_ticker": event_ticker, "available": True, "report_published_utc": published.isoformat(),
+           "published_at_precision": "15min", "game_listed": not r.empty}
+    if r.empty:
+        out["note"] = "this game is not on the latest report published before t (teams usually file on game day)"
+        return out
+    for side, code in (("home", g.home_team), ("away", g.away_team)):
+        mine = r[r.team.map(nba_injuries.NBA_TEAM_CODES) == code]
+        out[side] = {"team": code,
+                     "submitted": not (mine.status == "NOT YET SUBMITTED").any() and not mine.empty,
+                     "players": [{"player": x.player, "status": x.status, "reason": x.reason}
+                                 for x in mine.itertuples() if x.status != "NOT YET SUBMITTED"]}
+        if mine.empty:
+            out[side]["note"] = "no entries for this team in the report (no players with an injury designation)"
+            out[side]["submitted"] = True
+    return out
 
 
 if __name__ == "__main__":

@@ -8,7 +8,19 @@ market-plus-model blend, the LLM agent, and an agent with official injury report
 already contain the public signal. The agent forecasts at about $0.05 and 11 seconds per game, with zero lookahead
 leaks logged across every run.
 
-<!-- HOLDOUT RESULTS: filled in after the one-time, pre-registered holdout scoring -->
+### Holdout (scored once, pre-registered in [`SPEC.md`](benchmark/SPEC.md) before any result was computed)
+
+| System | Holdout games | Brier | − market (95% CI) |
+|---|---|---|---|
+| **Market at t** (1 h before) | 887 | **0.2269** | — |
+| Market + model blend (fit on dev) | 887 | 0.2282 | +0.0013 (+0.0002 to +0.0024), worse |
+| My models alone | 887 | 0.2303 | +0.0034 (+0.0001 to +0.0068), worse |
+| **Agent v1** (Claude Opus 5.5, 4 tools) | 100-game sample | **0.2280** vs market 0.2297 | −0.0017 (−0.0037 to +0.0003), no detectable edge |
+
+The market is the best single forecaster on fresh games. The fixed blend that tied the market on dev lost to it on the
+holdout (my NBA model degraded this fall), while the agent, which mostly defers to the market and leans on my model
+only with judgment, did not lose: an LLM that defers to the market held up better than a fixed formula when one input
+drifted. Agent run: 100 games, 0 errors, 0 leaks, $4.59, 10 s per game.
 
 ## Architecture
 

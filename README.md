@@ -107,7 +107,7 @@ injury reports at all, which is how the benchmark's preseason rule was found.
     24-hour variant; the leak audit would flag it otherwise.
   - Injury reports are dated by the report time in the file name, never by when they were downloaded.
 - **Checking results before trusting them.** An early "my model beats the market" result came from swapped labels in
-  the scoring script. A second, independent check caught it (fixed in commit `0a3fd4a`). Rebuilding the benchmark keeps
+  the scoring script. A second, independent check caught it (fixed in commit `fa85490`). Rebuilding the benchmark keeps
   every game's dev/holdout membership, which the build asserts against the frozen split.
 
 ## Limitations
